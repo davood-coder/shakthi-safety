@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Shield, Mail, Lock, User, ArrowRight, AlertCircle } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -122,8 +122,8 @@ const Auth = () => {
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-emergency flex items-center justify-center shadow-emergency mb-4">
-            <Shield className="w-8 h-8 text-primary-foreground" />
+          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-emergency mb-4">
+            <img src="/logo.png" alt="SecureSakhi Logo" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-2xl font-display font-bold text-foreground">SecureSakhi</h1>
           <p className="text-xs text-muted-foreground mt-1">Your Safety, Our Priority</p>

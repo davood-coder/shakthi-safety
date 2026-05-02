@@ -1,4 +1,4 @@
-import { Shield, LogOut, MapPin, Users, Navigation, AlertTriangle, ChevronRight } from "lucide-react";
+import { LogOut, MapPin, Users, Navigation, AlertTriangle, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 import EmergencyButton from "@/components/EmergencyButton";
 import QuickActions from "@/components/QuickActions";
@@ -45,8 +45,8 @@ const Index = () => {
         className="px-5 pt-6 pb-3 flex items-center justify-between"
       >
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-gradient-emergency flex items-center justify-center">
-            <Shield className="w-5 h-5 text-primary-foreground" />
+          <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center">
+            <img src="/logo.png" alt="SecureSakhi Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <h1 className="text-lg font-display font-bold text-foreground tracking-tight">SecureSakhi</h1>
