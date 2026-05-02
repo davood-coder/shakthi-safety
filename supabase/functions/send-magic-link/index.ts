@@ -22,39 +22,45 @@ serve(async (req) => {
     const { email, fullName, isSignUp } = await req.json();
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // 1. If it's a Sign Up, create the user first
+    // 1. Generate a random temporary password
+    const tempPassword = Math.random().toString(36).substring(2, 12) + "!" + Math.random().toString(36).substring(2, 5).toUpperCase();
+
+    // 2. Create or Update the user with this password
+    let userId;
     if (isSignUp) {
-      const { error: signUpError } = await supabase.auth.admin.createUser({
-        email: email,
-        email_confirm: true, // Confirm them automatically so Supabase doesn't send an email
-        user_metadata: { full_name: fullName },
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: { full_name: fullName }
       });
-      // If user already exists, we'll just proceed to send a login link
-      if (signUpError && signUpError.message !== "User already registered") throw signUpError;
+      if (error && error.message !== "User already registered") throw error;
+      userId = data.user?.id;
+    } 
+    
+    // If user already exists, update their password
+    if (!userId) {
+      const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
+      if (listError) throw listError;
+      const user = users.find(u => u.email === email);
+      if (!user) throw new Error("User not found. Please sign up first.");
+      
+      const { error: updateError } = await supabase.auth.admin.updateUserById(user.id, {
+        password: tempPassword
+      });
+      if (updateError) throw updateError;
+      userId = user.id;
     }
 
-    // 2. Generate the Magic Link URL from Supabase
-    const { data, error: linkError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
-      options: {
-        redirectTo: `${new URL(req.headers.get("origin") || "").origin}/`,
-      }
-    });
+    // 3. Create the Login Link
+    const loginUrl = `${new URL(req.headers.get("origin") || "").origin}/auth/verify?email=${encodeURIComponent(email)}&p=${encodeURIComponent(tempPassword)}`;
 
-    if (linkError) throw linkError;
-
-    const magicLink = data.properties.action_link;
-
-    // 3. Send the email using Gmail SMTP
+    // 4. Send Gmail
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 465,
       secure: true,
-      auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_APP_PASSWORD,
-      },
+      auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
     });
 
     await transporter.sendMail({
@@ -62,11 +68,11 @@ serve(async (req) => {
       to: email,
       subject: "Your SecureSakhi Login Link",
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 12px;">
+        <div style="font-family: sans-serif; text-align: center; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
           <h2 style="color: #ef4444;">SecureSakhi</h2>
-          <p>Hello! Use the button below to sign in to your account. This link will bypass any email restrictions.</p>
-          <a href="${magicLink}" style="display: inline-block; padding: 14px 28px; background-color: #ef4444; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Confirm & Log In</a>
-          <p style="margin-top: 25px; font-size: 12px; color: #999;">If you didn't request this, you can safely ignore this email.</p>
+          <p>Click the button below to sign in instantly.</p>
+          <a href="${loginUrl}" style="background: #ef4444; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Log In Now</a>
+          <p style="font-size: 10px; color: #999; margin-top: 20px;">This is a one-time login link.</p>
         </div>
       `,
     });

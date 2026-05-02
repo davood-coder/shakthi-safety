@@ -87,7 +87,7 @@ const sendEmail = async (to: string[], subject: string, html: string) => {
     return sendEmailWithGmail(to, subject, html);
   }
 
-  throw new Error("Missing Gmail credentials. Please set GMAIL_USER and GMAIL_APP_PASSWORD in Supabase secrets.");
+  throw new Error("Missing email provider secrets. Please add GMAIL_USER and GMAIL_APP_PASSWORD to Supabase secrets.");
 };
 
 Deno.serve(async (req) => {

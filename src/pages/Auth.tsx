@@ -6,15 +6,25 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
 const getAuthErrorMessage = (error: unknown) => {
   if (!(error instanceof Error)) {
     return "Authentication failed. Please try again.";
   }
 
   if (error.message === "Failed to fetch" || error.message.includes("NetworkError")) {
-    return "Cannot reach the Supabase auth server. Check that VITE_SUPABASE_URL points to an active Supabase project.";
+    return "Cannot reach the Supabase server. Check your internet connection and VITE_SUPABASE_URL in .env.";
+  }
+
+  if (error.message.toLowerCase().includes("invalid login credentials")) {
+    return "Invalid email or password. Please try again.";
+  }
+
+  if (error.message.toLowerCase().includes("user already registered")) {
+    return "An account with this email already exists. Please sign in instead.";
+  }
+
+  if (error.message.toLowerCase().includes("email not confirmed")) {
+    return "Please check your email and confirm your account before signing in.";
   }
 
   return error.message;
@@ -27,7 +37,7 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [backendReachable, setBackendReachable] = useState(true);
+  const [isMagicLink, setIsMagicLink] = useState(false);
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
 
@@ -36,23 +46,6 @@ const Auth = () => {
       navigate("/", { replace: true });
     }
   }, [authLoading, navigate, user]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetch(`${SUPABASE_URL}/auth/v1/health`, { signal: controller.signal })
-      .then((response) => {
-        setBackendReachable(response.ok);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setBackendReachable(false);
-      });
-
-    return () => controller.abort();
-  }, []);
-
-  const [isMagicLink, setIsMagicLink] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,25 +56,46 @@ const Auth = () => {
       const normalizedEmail = email.trim().toLowerCase();
       const normalizedFullName = fullName.trim();
 
-      if (isMagicLink || !isLogin) {
-        const { data, error } = await supabase.functions.invoke('send-magic-link', {
-          body: { 
-            email: normalizedEmail,
-            fullName: normalizedFullName,
-            isSignUp: !isLogin
-          },
+      // --- MAGIC LINK FLOW ---
+      if (isMagicLink) {
+        const { error } = await supabase.functions.invoke("send-magic-link", {
+          body: { email: normalizedEmail, fullName: normalizedFullName, isSignUp: false },
         });
-        
         if (error) throw error;
-        
-        if (!isLogin) {
-          toast.success("Account created! We've sent a confirmation link to your Gmail.");
-          setIsLogin(true);
-        } else {
-          toast.success("Magic link sent to your Gmail! Check your inbox.");
-        }
+        toast.success("Magic link sent! Check your Gmail inbox.");
         return;
       }
+
+      // --- SIGN UP FLOW (native Supabase auth) ---
+      if (!isLogin) {
+        if (!normalizedFullName) {
+          throw new Error("Please enter your full name.");
+        }
+        const { error } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            data: { full_name: normalizedFullName },
+          },
+        });
+        if (error) throw error;
+        toast.success("Account created! Check your email to confirm, then sign in.");
+        setIsLogin(true);
+        setPassword("");
+        return;
+      }
+
+      // --- LOGIN FLOW ---
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      if (error) throw error;
+      if (!data.session) {
+        throw new Error("Sign in succeeded but no session was returned.");
+      }
+      toast.success("Welcome back!");
+      navigate("/", { replace: true });
     } catch (error: unknown) {
       const message = getAuthErrorMessage(error);
       setAuthError(message);
@@ -115,14 +129,11 @@ const Auth = () => {
           <p className="text-xs text-muted-foreground mt-1">Your Safety, Our Priority</p>
         </div>
 
-        {/* Form */}
-        {(!backendReachable || authError) && (
+        {/* Error Banner - only shown on real auth errors */}
+        {authError && (
           <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <p>
-              {authError ||
-                "Supabase auth is unreachable. Update .env with a live VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, then restart npm run dev."}
-            </p>
+            <p>{authError}</p>
           </div>
         )}
 
