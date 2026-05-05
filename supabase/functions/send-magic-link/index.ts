@@ -12,6 +12,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const GMAIL_USER = Deno.env.get("GMAIL_USER") ?? "";
 const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
+// Set this in Supabase secrets: supabase secrets set SITE_URL="https://your-site.vercel.app"
+const SITE_URL = Deno.env.get("SITE_URL") ?? "http://localhost:5173";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -26,7 +28,7 @@ serve(async (req) => {
     const tempPassword = Math.random().toString(36).substring(2, 12) + "!" + Math.random().toString(36).substring(2, 5).toUpperCase();
 
     // 2. Create or Update the user with this password
-    let userId;
+    let userId: string | undefined;
     if (isSignUp) {
       const { data, error } = await supabase.auth.admin.createUser({
         email,
@@ -34,9 +36,9 @@ serve(async (req) => {
         email_confirm: true,
         user_metadata: { full_name: fullName }
       });
-      if (error && error.message !== "User already registered") throw error;
+      if (error && !error.message.includes("already registered")) throw error;
       userId = data.user?.id;
-    } 
+    }
     
     // If user already exists, update their password
     if (!userId) {
@@ -52,8 +54,8 @@ serve(async (req) => {
       userId = user.id;
     }
 
-    // 3. Create the Login Link
-    const loginUrl = `${new URL(req.headers.get("origin") || "").origin}/auth/verify?email=${encodeURIComponent(email)}&p=${encodeURIComponent(tempPassword)}`;
+    // 3. Create the Login Link using SITE_URL env var
+    const loginUrl = `${SITE_URL}/auth/verify?email=${encodeURIComponent(email)}&p=${encodeURIComponent(tempPassword)}`;
 
     // 4. Send Gmail
     const transporter = nodemailer.createTransport({

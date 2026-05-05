@@ -19,37 +19,8 @@ type SendAlertResponse = {
   error?: string;
 };
 
-const buildEmergencyMessage = (latitude: number | null, longitude: number | null) => {
-  const location =
-    latitude !== null && longitude !== null
-      ? `https://maps.google.com/?q=${latitude},${longitude}`
-      : "Location unavailable";
-
-  return `SOS Alert from SecureSakhi. I may need urgent help. My location: ${location}`;
-};
-
-const openAlertDrafts = (contacts: Array<{ phone: string; email: string | null }>, message: string) => {
-  const phones = contacts.map((contact) => contact.phone.trim()).filter(Boolean);
-  const emails = contacts
-    .map((contact) => contact.email?.trim())
-    .filter((email): email is string => Boolean(email));
-
-  if (emails.length > 0) {
-    const subject = encodeURIComponent("SOS Alert from SecureSakhi");
-    const body = encodeURIComponent(message);
-    window.open(`mailto:${emails.join(",")}?subject=${subject}&body=${body}`, "_blank");
-  }
-
-  if (phones.length > 0) {
-    const separator = /Android/i.test(navigator.userAgent) ? "?" : "&";
-    const body = encodeURIComponent(message);
-    window.open(`sms:${phones.join(",")}${separator}body=${body}`, "_blank");
-  }
-
-  return { phoneCount: phones.length, emailCount: emails.length };
-};
-
 const sendEmailAlert = async (record: EmergencyLog) => {
+  // CALLING BACKEND API (Supabase Edge Function)
   const { data, error } = await supabase.functions.invoke<SendAlertResponse>("send-alert", {
     body: { record },
   });
@@ -85,9 +56,8 @@ const EmergencyButton = () => {
       // Location unavailable, proceed without it.
     }
 
-    const alertMessage = buildEmergencyMessage(latitude, longitude);
-
     if (user) {
+      // 1. Log the emergency in the database
       const { data: emergencyLog, error: logError } = await supabase
         .from("emergency_logs")
         .insert({
@@ -102,44 +72,32 @@ const EmergencyButton = () => {
 
       if (logError) {
         toast.error("Failed to log emergency");
-      } else {
-        toast.success("Emergency alert logged.");
-
-        try {
-          const result = await sendEmailAlert(emergencyLog);
-          toast.success(`Email alert sent to ${result.recipients ?? 0} trusted contact(s).`);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to send email alert";
-          console.error("Email alert error:", error);
-          
-          if (message.includes("Missing email provider secrets")) {
-            toast.error("Email credentials not set. Please configure GMAIL_USER and GMAIL_APP_PASSWORD in Supabase.");
-          } else if (message.includes("Gmail SMTP failed")) {
-            toast.error("Gmail alert failed. Please check if your App Password is correct and 2FA is enabled.");
-          } else {
-            toast.error(`Email alert failed: ${message}`);
-          }
-        }
+        setPressed(false);
+        return;
       }
 
-      const { data: contacts, error: contactsError } = await supabase
-        .from("trusted_contacts")
-        .select("phone,email")
-        .eq("user_id", user.id);
+      toast.success("Emergency logged. Sending background alerts...");
 
-      if (contactsError) {
-        toast.error(contactsError.message);
-      } else {
-        const { phoneCount, emailCount } = openAlertDrafts(contacts ?? [], alertMessage);
-        if (phoneCount || emailCount) {
-          toast.success(`Alert draft opened for ${phoneCount} phone and ${emailCount} email contact(s).`);
+      try {
+        // 2. TRIGGER AUTOMATIC BACKGROUND EMAIL
+        const result = await sendEmailAlert(emergencyLog);
+        toast.success(`✅ SOS ALERTS SENT successfully to ${result.recipients ?? 0} contacts!`, {
+          duration: 5000,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to send email alert";
+        console.error("Email alert error:", error);
+        
+        if (message.includes("Missing email provider secrets")) {
+          toast.error("CRITICAL: Backend Email not configured. Admin must set GMAIL_USER.");
         } else {
-          toast.error("Add trusted contacts with phone numbers or emails before sending alerts.");
+          toast.error(`Background Alert Failed: ${message}`);
         }
       }
     }
 
-    setTimeout(() => setPressed(false), 3000);
+    // Reset button state after a delay
+    setTimeout(() => setPressed(false), 5000);
   };
 
   return (
@@ -159,7 +117,7 @@ const EmergencyButton = () => {
         <div className="flex flex-col items-center gap-1">
           <span className="text-3xl font-display font-bold text-primary-foreground">SOS</span>
           <span className="text-[10px] text-primary-foreground/70 font-medium tracking-wider uppercase">
-            {pressed ? "Sending..." : "Tap to activate"}
+            {pressed ? "ALERTING..." : "Tap to activate"}
           </span>
         </div>
       </motion.button>
@@ -169,7 +127,7 @@ const EmergencyButton = () => {
           animate={{ opacity: 1, y: 0 }}
           className="text-xs text-primary font-semibold"
         >
-          Alerting trusted contacts...
+          Sending silent alerts to trusted contacts...
         </motion.p>
       )}
     </div>
