@@ -5,14 +5,23 @@ import QuickActions from "@/components/QuickActions";
 import TrustedContacts from "@/components/TrustedContacts";
 import HelplineDirectory from "@/components/HelplineDirectory";
 import BottomNav from "@/components/BottomNav";
+import SafetyTimer from "@/components/SafetyTimer";
+import LiveTracker from "@/components/LiveTracker";
+import LiveMap from "@/components/LiveMap";
+
+
+
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import StatusBar from "@/components/StatusBar";
+import { useShakeDetection } from "@/hooks/useShakeDetection";
 
 const Index = () => {
+  useShakeDetection();
   const [activeTab, setActiveTab] = useState<"home" | "contacts" | "helpline" | "safety">("home");
+
   const { user, signOut } = useAuth();
 
   const { data: contacts = [] } = useQuery({
@@ -39,7 +48,9 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto relative overflow-hidden">
+      <LiveTracker />
       <motion.header
+
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="px-5 pt-6 pb-3 flex items-center justify-between"
@@ -118,7 +129,13 @@ const SafetyTab = () => (
   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 pt-2">
     <h2 className="text-xl font-display font-bold text-foreground">Safety Dashboard</h2>
 
+    <SafetyTimer />
+
+    <LiveMap />
+
     <div className="rounded-2xl bg-gradient-card border border-border p-5">
+
+
       <h3 className="text-sm font-display font-semibold text-foreground mb-1">Current Area Risk Score</h3>
       <div className="flex items-end gap-3 mt-3">
         <span className="text-5xl font-display font-bold text-safe">82</span>

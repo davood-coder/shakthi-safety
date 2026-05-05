@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -39,6 +39,16 @@ const sendEmailAlert = async (record: EmergencyLog) => {
 const EmergencyButton = () => {
   const [pressed, setPressed] = useState(false);
   const { user } = useAuth();
+
+  useEffect(() => {
+    const handleAutoSOS = () => {
+      if (!pressed) triggerEmergency();
+    };
+    
+    window.addEventListener("trigger-sos", handleAutoSOS);
+    return () => window.removeEventListener("trigger-sos", handleAutoSOS);
+  }, [pressed]);
+
 
   const triggerEmergency = async () => {
     setPressed(true);
