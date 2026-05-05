@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { registerPlugin } from "@getcapacitor/core";
+import { registerPlugin } from "@capacitor/core";
 
 interface ShakeDetectionPlugin {
   start(): Promise<void>;
